@@ -329,7 +329,9 @@ class pydc_client():
 		for iteration in range(args["buffer"].count("|")):
 			# Isolate a particular command
 			length = args["buffer"].index("|")
-			if length==0: continue
+			if length==0:
+				args["buffer"] = args["buffer"][1:]
+				continue
 			data = args["buffer"][0:length]
 			args["buffer"] = args["buffer"][length+1:]
 			if data[0]=="<" and self._mainchat: self._mainchat(data+"\n")
@@ -389,7 +391,7 @@ class pydc_client():
 					self._nicklist[nick]["share"] = share
 				elif x[0]=="$To:":
 					info2 = re.findall("^\$To\: ([^ ]*) From: ([^ ]*) \$(.*)$",data)
-					if len(info2==0): continue
+					if len(info2)==0: continue
 					else: info2 = info2[0]
 					if self._config["nick"]!=info2[0]: continue
 					try: self._pm( info2[1] , time.strftime("%d-%b-%Y %H:%S",time.localtime())+" "+info2[2] )
@@ -509,12 +511,12 @@ class pydc_client():
 			if len(nick)==0: return self
 			else: nick=nick[0]
 		if self._config["mode"]: # Nothing can be done if both are passive
-			port = random.randint(0,2**16-1) # Randomly select +ve integer for a part number in the given range
+			port = random.randint(1000,2**16-1) # Randomly select +ve integer for a part number in the given range
 			d = { "nick":nick } # This is the prototype for the transfer object, created so that the connection object it will contain will have a reference to it.
 			self.debug("Sending connection request to "+nick+" ...")
 			while True: # Keeping trying to bind to different port numbers
 				try:
-					d["socket"] = Connection({"name":nick,"host":self._config["localhost"],"port":port,"role":"server","type":"tcp","handler":self.transfer_handler,"args":{"role":"server","transfer":d,"failure":failure},"debug":self._debug})
+					d["socket"] = Connection({"name":nick,"host":self._config["localhost"],"port":port,"role":"server","type":"tcp","handler":self.transfer_handler,"args":{"role":"server","transfer":d,"failure":failure,"nick":nick},"debug":self._debug})
 					break # Terminate loop only after binding to a specific port. Those Connections objects that could not bind have lost their 
 				except ConnectionError: port = random.randint(0,2**16-1) # If this particular port is occupied,try another one randomly
 			self._transfer.append(d)
@@ -700,8 +702,10 @@ class pydc_client():
 			if "port" not in args["transfer"]: args["transfer"]["port"]=info["port"]
 			if "buffer" not in args: # Initializations to be done when a TCP connection has just been set up.
 				if args["role"]=="client": info["send"]("$MyNick "+self.escape(self._config["nick"])+"|")
-				args = {"buffer":"", "binary":False, "support":[], "role":args["role"], "transfer":args["transfer"] }
+				args = {"buffer":"", "binary":False, "support":[], "role":args["role"], "transfer":args["transfer"], "get":None, "error":False }
 			else: # Destructor
+				if args["get"] is not None and not args["error"]:
+					self.spawn("RemoteConnection:"+args["nick"],self.connect_remote,(args["nick"],True))
 				info["kill"]() # Release slots and kill server
 			return args
 		args["buffer"]+=data
@@ -711,7 +715,9 @@ class pydc_client():
 			restart = False
 			for iteration in range(args["buffer"].count("|")):
 				length = args["buffer"].index("|")
-				if length==0: continue
+				if length==0:
+					args["buffer"] = args["buffer"][1:]
+					continue
 				data = args["buffer"][0:length]
 				args["buffer"] = args["buffer"][length+1:]
 				x = data.split()
@@ -726,7 +732,7 @@ class pydc_client():
 					if args["role"]=="client": info["send"]("$Lock "+self._config["lock"]+" Pk="+self._config["signature"]+"|")
 					elif args["role"]=="server":
 						args["get"] = self.transfer_next(args,info)
-						args["rand1"] = random.randint(0,32767)
+						args["rand1"] = 32766 # random.randint(0,32767)
 						info["send"]("$Supports "+self._config["support"]+"|$Direction "+("Download" if args["get"] is not None else "Upload")+" "+str(args["rand1"])+"|$Key "+self.lock2key(args["lock"])+"|")
 				elif x[0]=="$Supports":
 					args["support"] = x[1:]
@@ -757,7 +763,7 @@ class pydc_client():
 							if args["get"]["failure_callback_args"]!=None: args["get"]["failure_callback"](args["get"]["failure_callback_args"])
 							else: args["get"]["failure_callback"]()
 						except:
-							self.debug("Success Callback Function Error : "+str(args["get"]))
+							self.debug("Failure Callback Function Error : "+str(args["get"]))
 							exc_type, exc_value, exc_traceback = sys.exc_info()
 							traceback.print_exception(exc_type, exc_value, exc_traceback, limit=10, file=(sys.stdout))
 				elif x[0]=="$ADCSND":
@@ -772,6 +778,7 @@ class pydc_client():
 				elif x[0]=="$Error" or x[0]=="$MaxedOut": # Failed Downloads
 					self.debug("Error downloading file : "+str(args["get"])+" : "+(data[7:] if x[0][1]=="E" else "No slots available."))
 					# SHERIFFBOT : If you cant download immediately, give up.
+					args["error"] = True
 					args["get"]["active"] = False
 					self._download["downslots"]-=1
 					if args["get"]["failure_callback"]!=None:
