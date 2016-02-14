@@ -308,7 +308,7 @@ class pydc_client():
 		self._download["active"] = False
 		if self._download["thread"] is not None:
 			self._download["thread"].join()
-		self.debug("Terminating step thread ...")	
+		self.debug("Terminating step thread ...")
 		self._step["active"] = False
 		if self._step["thread"] is not None:
 			self._step["thread"].join() # Terminate step thread
@@ -337,7 +337,7 @@ class pydc_client():
 			if data[0]=="<" and self._mainchat: self._mainchat(data+"\n")
 			elif data[0]=="$":
 				x = data.split()
-				if x[0]=="$Lock": self._socket.send("$Supports UserCommand UserIP2 TTHSearch ZPipe0 GetZBlock |$Key "+self.lock2key(x[1])+"|$ValidateNick "+self._config["nick"]+"|")
+				if x[0]=="$Lock": self._socket.send("$Supports UserCommand UserIP2 TTHSearch GetZBlock |$Key "+self.lock2key(x[1])+"|$ValidateNick "+self._config["nick"]+"|")
 				elif x[0]=="$Supports": self._config["hub_supports"] = x[1:]
 				elif x[0]=="$HubName":
 					self._config["hubname"] = x[-1]
@@ -381,7 +381,7 @@ class pydc_client():
 						if nick=="": continue
 						self._nicklist[nick]["bot"] = (True if nick in bots else False)
 				elif x[0]=="$MyINFO":
-					nick,desc,conn,flag,email,share = re.findall("^\$MyINFO \$ALL ([^ ]*) ([^\$]*)\$ \$([^\$]*)([^\$])\$([^\$]*)\$([^\$]*)\$$",data)[0]
+					nick,desc,conn,flag,email,share = re.findall("^\$MyINFO \$ALL ([^ ]*) ([^\$]*)\$.\$([^\$]*)([^\$])\$([^\$]*)\$([^\$]*)\$",data)[0]
 					try: self._config["nicklist"][nick]
 					except KeyError: self._nicklist[nick] = {"operator":False,"bot":False}
 					self._nicklist[nick]["desc"] = desc
